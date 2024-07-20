@@ -87,7 +87,7 @@ func (h *RtspHandler) Start() error {
 		ReadTimeout:       conf.StringDuration(5 * time.Second),
 		WriteTimeout:      conf.StringDuration(5 * time.Second),
 		WriteQueueSize:    512,
-		UseUDP:            false,
+		UseUDP:            true,
 		UseMulticast:      false,
 		RTPAddress:        "0.0.0.0:6512",
 		RTCPAddress:       "0.0.0.0:6513",
@@ -100,6 +100,7 @@ func (h *RtspHandler) Start() error {
 		RTSPAddress:       h.rtspAddr,
 		Protocols: map[conf.Protocol]struct{}{
 			conf.Protocol(gortsplib.TransportTCP): {},
+			conf.Protocol(gortsplib.TransportUDP): {},
 		},
 		PathManager: pm,
 		Parent:      l,
@@ -139,7 +140,7 @@ func (h *RtspHandler) Stop() {
 }
 
 func (h *RtspHandler) AddPath(path string) error {
-	t := gortsplib.TransportTCP
+	tTcp := gortsplib.TransportTCP
 
 	pathConf := &conf.Path{
 		Name:              path,
@@ -147,7 +148,7 @@ func (h *RtspHandler) AddPath(path string) error {
 		MaxReaders:        0,
 		OverridePublisher: false,
 		RTSPTransport: conf.RTSPTransport{
-			Transport: &t,
+			Transport: &tTcp,
 		},
 		RTSPAnyPort:    false,
 		RTSPRangeType:  0,

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type Unit struct {
@@ -16,21 +17,23 @@ type Unit struct {
 }
 
 type Instance struct {
-	rtspHandler *core.RtspHandler
-	httpHandler *ControlServer
-	units       map[string]Unit
-	running     atomic.Bool
-	ctx         context.Context
+	rtspHandler       *core.RtspHandler
+	httpHandler       *ControlServer
+	units             map[string]Unit
+	running           atomic.Bool
+	ctx               context.Context
+	retryAfterSeconds int
 }
 
-func NewInstance(rtspAddr string, httpAddr string) *Instance {
+func NewInstance(rtspAddr string, httpAddr string, retryAfterSeconds int) *Instance {
 	ctx := context.Background()
 	return &Instance{
-		rtspHandler: core.NewRtspHandler(ctx, rtspAddr),
-		httpHandler: NewControlServer(httpAddr),
-		units:       map[string]Unit{},
-		running:     atomic.Bool{},
-		ctx:         ctx,
+		rtspHandler:       core.NewRtspHandler(ctx, rtspAddr),
+		httpHandler:       NewControlServer(httpAddr),
+		units:             map[string]Unit{},
+		running:           atomic.Bool{},
+		ctx:               ctx,
+		retryAfterSeconds: retryAfterSeconds,
 	}
 }
 
@@ -80,13 +83,50 @@ func (instance *Instance) Start() error {
 		return err
 	}
 
+	instance.running.Store(true)
+
+	go instance.run()
+
 	return nil
+}
+
+func (instance *Instance) run() {
+	if instance.retryAfterSeconds > 0 {
+		ticker := time.NewTicker(time.Duration(instance.retryAfterSeconds) * time.Second)
+		defer func() {
+			ticker.Stop()
+		}()
+
+		for instance.running.Load() {
+			select {
+			case <-ticker.C:
+				if !instance.running.Load() {
+					return
+				}
+			case <-instance.ctx.Done():
+				return
+			}
+
+			for _, u := range instance.units {
+				t := u.transcoder
+				if t == nil {
+					continue
+				}
+
+				if t.status != StatusOk {
+					_ = t.Start(instance.ctx)
+				}
+			}
+		}
+	}
 }
 
 func (instance *Instance) Stop() error {
 	if !instance.running.Load() {
 		return errors.New("instance not running")
 	}
+
+	instance.running.Store(false)
 
 	_ = instance.httpHandler.Stop()
 
@@ -153,7 +193,7 @@ func (instance *Instance) RemoveUnit(id string) error {
 
 	_ = u.transcoder.Stop()
 
-	_ = instance.rtspHandler.RemovePath(u.path.to.String())
+	_ = instance.rtspHandler.RemovePath(id)
 
 	delete(instance.units, id)
 

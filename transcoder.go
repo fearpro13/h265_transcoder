@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/url"
 	"os/exec"
+	"strings"
 	"sync/atomic"
 	"syscall"
 )
@@ -20,6 +21,7 @@ const (
 )
 
 var ffmpegPath = "/usr/bin/ffmpeg"
+var TranscodeUseGPU = false
 
 type Source struct {
 	id   string
@@ -68,13 +70,16 @@ func (t *Transcoder) Start(ctx context.Context) error {
 		return errors.New("already started")
 	}
 
-	t.ctx, t.ctxF = context.WithCancel(ctx)
-	defer func() {
-		t.ctxF()
-	}()
-
 	// start ffmpeg
-	cmd := exec.Command(ffmpegPath, "-i", t.source.from.String(), "-c:v", "h264", "-f", "rtsp", t.source.to.String())
+	var argsStr string
+	if TranscodeUseGPU {
+		argsStr = fmt.Sprintf("-i %s -c:a copy -c:v libx264 -x264-params keyint=60:min-keyint=60 -f rtsp %s", t.source.from.String(), t.source.to.String())
+	} else {
+		argsStr = fmt.Sprintf("-i %s -c:a copy -c:v libx264 -x264-params keyint=60:min-keyint=60 -f rtsp %s", t.source.from.String(), t.source.to.String())
+	}
+
+	argsSplit := strings.Split(argsStr, " ")
+	cmd := exec.Command(ffmpegPath, argsSplit...)
 
 	stdErr, err := cmd.StderrPipe()
 	if err != nil {
@@ -96,26 +101,34 @@ func (t *Transcoder) Start(ctx context.Context) error {
 
 	go t.run()
 
+	t.ctx, t.ctxF = context.WithCancel(ctx)
+
 	go func() {
-		select {
-		case <-ctx.Done():
-			_ = t.Stop()
+		err := cmd.Wait()
+
+		if err != nil {
+			t.status = StatusError
+			log.Println(fmt.Sprintf("transcoder #%s(%s): %s", t.source.id, t.source.from.String(), err))
+		} else {
+			t.status = StatusStopped
 		}
+
+		_ = t.proc.Process.Release()
+
+		t.ctxF()
 	}()
 
 	go func() {
-		_ = cmd.Wait()
-		_ = t.Stop()
+		select {
+		case <-t.ctx.Done():
+			t.running.Store(false)
+		}
 	}()
 
 	return nil
 }
 
 func (t *Transcoder) run() {
-	defer func() {
-		_ = t.Stop()
-	}()
-
 	var line []byte
 	var pErr, err error
 
@@ -126,14 +139,16 @@ func (t *Transcoder) run() {
 	for t.running.Load() {
 		line, _, err = reader.ReadLine()
 		if err != nil {
-			log.Println(fmt.Sprintf("transcoder #%d(%s): %s", t.source.id, t.source.from.String(), err))
+			if err != io.EOF {
+				log.Println(fmt.Sprintf("transcoder #%s(%s): %s", t.source.id, t.source.from.String(), err))
+			}
 
 			pErr = t.proc.Process.Signal(syscall.Signal(0))
 			if pErr != nil && !errors.Is(pErr, syscall.EPERM) {
 				return
 			}
 		} else {
-			log.Println(fmt.Sprintf("transcoder #%d(%s): %s", t.source.id, t.source.from.String(), line))
+			log.Println(fmt.Sprintf("transcoder #%s(%s): %s", t.source.id, t.source.from.String(), line))
 		}
 	}
 }
@@ -144,21 +159,10 @@ func (t *Transcoder) Stop() error {
 	}
 
 	t.running.Store(false)
-
+	t.ctxF()
 	_ = t.proc.Process.Kill()
 
-	err := t.proc.Wait()
-
-	if err != nil {
-		t.status = StatusError
-		log.Println(fmt.Sprintf("transcoder #%d(%s): %s", t.source.id, t.source.from.String(), err))
-	} else {
-		t.status = StatusStopped
-	}
-
-	_ = t.proc.Process.Release()
-
-	return err
+	return nil
 }
 
 func (t *Transcoder) Status() string {
