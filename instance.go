@@ -23,17 +23,19 @@ type Instance struct {
 	running           atomic.Bool
 	ctx               context.Context
 	retryAfterSeconds int
+	allowUdp          bool
 }
 
-func NewInstance(rtspAddr string, httpAddr string, retryAfterSeconds int) *Instance {
+func NewInstance(rtspAddr string, httpAddr string, retryAfterSeconds int, allowUdp bool) *Instance {
 	ctx := context.Background()
 	return &Instance{
-		rtspHandler:       core.NewRtspHandler(ctx, rtspAddr),
+		rtspHandler:       core.NewRtspHandler(ctx, rtspAddr, allowUdp),
 		httpHandler:       NewControlServer(httpAddr),
 		units:             map[string]Unit{},
 		running:           atomic.Bool{},
 		ctx:               ctx,
 		retryAfterSeconds: retryAfterSeconds,
+		allowUdp:          allowUdp,
 	}
 }
 

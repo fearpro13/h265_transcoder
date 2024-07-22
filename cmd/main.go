@@ -29,6 +29,9 @@ func main() {
 	rtspPort := flag.Uint64("rtsp_port", 9222, "Rtsp listening port")
 	httpPort := flag.Uint64("http_port", 8222, "Http listening port")
 	ffmpegPath := flag.String("ex", "", "ffmpeg executable path")
+	idrInterval := flag.Uint64("idr", h265_transcoder.IdrInterval, "idr interval(key frame interval)")
+	udpFlag := flag.Bool("udp", false, "allow udp usage")
+
 	flag.Parse()
 
 	argc := len(os.Args)
@@ -42,16 +45,29 @@ func main() {
 		}
 	}
 
-	os.Exit(run(*rtspPort, *httpPort, *ffmpegPath, *gpuArg))
+	os.Exit(run(*rtspPort, *httpPort, *idrInterval, *ffmpegPath, *gpuArg, *udpFlag))
 }
 
-func run(rtspPort uint64, httpPort uint64, ffmpegPath string, useGpu bool) int {
+func run(rtspPort uint64, httpPort uint64, idrInterval uint64, ffmpegPath string, useGpu bool, allowUdp bool) int {
 	if useGpu {
 		log.Println("Using GPU HW Acceleration")
 		h265_transcoder.TranscodeUseGPU = true
 
 		log.Println("GPU HW acceleration currently not supported")
 		return 1
+	}
+
+	if idrInterval < 1 {
+		log.Println("very low idr interval")
+		return 1
+	}
+
+	log.Printf("IDR interval is %d \n", idrInterval)
+
+	if allowUdp {
+		log.Println("Rtsp server UDP connections are enabled")
+	} else {
+		log.Println("Rtsp server UDP connections are disabled")
 	}
 
 	ffmpegPath = strings.TrimSpace(ffmpegPath)
@@ -73,7 +89,7 @@ func run(rtspPort uint64, httpPort uint64, ffmpegPath string, useGpu bool) int {
 	osig := make(chan os.Signal, 1)
 	signal.Notify(osig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
 
-	instance := h265_transcoder.NewInstance(fmt.Sprintf(":%d", rtspPort), fmt.Sprintf(":%d", httpPort), 10)
+	instance := h265_transcoder.NewInstance(fmt.Sprintf(":%d", rtspPort), fmt.Sprintf(":%d", httpPort), 10, allowUdp)
 
 	err := instance.Start()
 	if err != nil {

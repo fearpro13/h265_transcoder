@@ -21,12 +21,14 @@ type RtspHandler struct {
 	rts      *rtsp.Server
 	running  atomic.Bool
 	rtspAddr string
+	useUdp   bool
 }
 
-func NewRtspHandler(ctx context.Context, addr string) *RtspHandler {
+func NewRtspHandler(ctx context.Context, addr string, useUdp bool) *RtspHandler {
 	handler := &RtspHandler{
 		running:  atomic.Bool{},
 		rtspAddr: addr,
+		useUdp:   useUdp,
 	}
 
 	handler.ctx, handler.ctxF = context.WithCancel(ctx)
@@ -79,6 +81,14 @@ func (h *RtspHandler) Start() error {
 
 	h.pm = pm
 
+	allowedProto := map[conf.Protocol]struct{}{
+		conf.Protocol(gortsplib.TransportTCP): {},
+	}
+
+	if h.useUdp {
+		allowedProto[conf.Protocol(gortsplib.TransportUDP)] = struct{}{}
+	}
+
 	rts := &rtsp.Server{
 		Address: h.rtspAddr,
 		AuthMethods: []auth.ValidateMethod{
@@ -87,7 +97,7 @@ func (h *RtspHandler) Start() error {
 		ReadTimeout:       conf.StringDuration(5 * time.Second),
 		WriteTimeout:      conf.StringDuration(5 * time.Second),
 		WriteQueueSize:    512,
-		UseUDP:            true,
+		UseUDP:            h.useUdp,
 		UseMulticast:      false,
 		RTPAddress:        "0.0.0.0:6512",
 		RTCPAddress:       "0.0.0.0:6513",
@@ -98,12 +108,9 @@ func (h *RtspHandler) Start() error {
 		ServerCert:        "",
 		ServerKey:         "",
 		RTSPAddress:       h.rtspAddr,
-		Protocols: map[conf.Protocol]struct{}{
-			conf.Protocol(gortsplib.TransportTCP): {},
-			conf.Protocol(gortsplib.TransportUDP): {},
-		},
-		PathManager: pm,
-		Parent:      l,
+		Protocols:         allowedProto,
+		PathManager:       pm,
+		Parent:            l,
 	}
 
 	err = rts.Initialize()
