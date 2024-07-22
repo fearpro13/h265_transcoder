@@ -20,7 +20,7 @@ const (
 	StatusError   = "error"
 )
 
-var ffmpegPath = "/usr/bin/ffmpeg"
+var FFMpegPath = "/usr/bin/ffmpeg"
 var TranscodeUseGPU = false
 
 type Source struct {
@@ -79,7 +79,7 @@ func (t *Transcoder) Start(ctx context.Context) error {
 	}
 
 	argsSplit := strings.Split(argsStr, " ")
-	cmd := exec.Command(ffmpegPath, argsSplit...)
+	cmd := exec.Command(FFMpegPath, argsSplit...)
 
 	stdErr, err := cmd.StderrPipe()
 	if err != nil {

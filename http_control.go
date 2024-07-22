@@ -71,6 +71,7 @@ func NewControlServer(addr string) *ControlServer {
 
 		err = controlServer.OnCreate(id, source)
 		if err != nil {
+			w.Header().Add("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 
 			encoder := json.NewEncoder(w)
@@ -90,6 +91,7 @@ func NewControlServer(addr string) *ControlServer {
 
 		err := controlServer.OnStop(id)
 		if err != nil {
+			w.Header().Add("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 
 			encoder := json.NewEncoder(w)

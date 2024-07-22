@@ -1,16 +1,34 @@
 package main
 
 import (
+	"errors"
 	"fearpro13/h265_transcoder"
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 )
 
 func main() {
+	demoTimeStr := "2024-07-23 12:00:00 +0300"
+	demoTime, _ := time.Parse("2006-01-02 15:04:05 -0700", demoTimeStr)
+
+	if time.Now().Unix() > demoTime.Unix() {
+		log.Printf("demo version finished at %s, contact me at fearpro13@gmail.com\n", demoTimeStr)
+		os.Exit(1)
+	} else {
+		log.Printf("Demo version active until %s\n", demoTimeStr)
+	}
+
 	gpuArg := flag.Bool("gpu", false, "Will use gpu hw acceleration(NVIDIA only)")
+	rtspPort := flag.Uint64("rtsp_port", 9222, "Rtsp listening port")
+	httpPort := flag.Uint64("http_port", 8222, "Http listening port")
+	ffmpegPath := flag.String("ex", "", "ffmpeg executable path")
 	flag.Parse()
 
 	argc := len(os.Args)
@@ -24,25 +42,42 @@ func main() {
 		}
 	}
 
-	if *gpuArg {
+	os.Exit(run(*rtspPort, *httpPort, *ffmpegPath, *gpuArg))
+}
+
+func run(rtspPort uint64, httpPort uint64, ffmpegPath string, useGpu bool) int {
+	if useGpu {
 		log.Println("Using GPU HW Acceleration")
 		h265_transcoder.TranscodeUseGPU = true
 
-		panic("Currently not supported")
+		log.Println("GPU HW acceleration currently not supported")
+		return 1
 	}
 
-	os.Exit(run())
-}
+	ffmpegPath = strings.TrimSpace(ffmpegPath)
+	if ffmpegPath == "" {
+		log.Println("ffmpeg executable path is required")
+		return 1
+	} else {
+		h265_transcoder.FFMpegPath = ffmpegPath
 
-func run() int {
+		err := testRunFFMpeg(ffmpegPath)
+		if err != nil {
+			log.Println(err)
+			return 1
+		} else {
+			log.Println(fmt.Sprintf("ffmpeg '%s' test run completed successfully", ffmpegPath))
+		}
+	}
+
 	osig := make(chan os.Signal, 1)
 	signal.Notify(osig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
 
-	instance := h265_transcoder.NewInstance(":9222", ":8222", 10)
+	instance := h265_transcoder.NewInstance(fmt.Sprintf(":%d", rtspPort), fmt.Sprintf(":%d", httpPort), 10)
 
 	err := instance.Start()
 	if err != nil {
-		println(err)
+		log.Println(err)
 
 		return 1
 	}
@@ -51,9 +86,37 @@ func run() int {
 
 	err = instance.Stop()
 	if err != nil {
-		println(err)
+		log.Println(err)
 		return 1
 	}
 
 	return 0
+}
+
+func testRunFFMpeg(path string) error {
+	var err error
+	testCmd := exec.Command(path, "-version")
+	err = testCmd.Start()
+	if err != nil {
+		return err
+	}
+
+	timer := time.NewTimer(5 * time.Second)
+	startRes := make(chan error, 1)
+
+	go func() {
+		startRes <- testCmd.Wait()
+	}()
+
+	go func() {
+		select {
+		case <-timer.C:
+			startRes <- errors.New(fmt.Sprintf("could not start '%s' - timeout reached", path))
+			_ = testCmd.Process.Kill()
+		case startRes <- <-startRes:
+			timer.Stop()
+		}
+	}()
+
+	return <-startRes
 }
