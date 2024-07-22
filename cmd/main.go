@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	demoTimeStr := "2024-07-23 12:00:00 +0300"
+	demoTimeStr := "2024-07-25 12:00:00 +0300"
 	demoTime, _ := time.Parse("2006-01-02 15:04:05 -0700", demoTimeStr)
 
 	if time.Now().Unix() > demoTime.Unix() {
@@ -89,7 +89,7 @@ func run(rtspPort uint64, httpPort uint64, idrInterval uint64, ffmpegPath string
 	osig := make(chan os.Signal, 1)
 	signal.Notify(osig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
 
-	instance := h265_transcoder.NewInstance(fmt.Sprintf(":%d", rtspPort), fmt.Sprintf(":%d", httpPort), 10, allowUdp)
+	instance := h265_transcoder.NewInstance(uint16(rtspPort), uint16(httpPort), 10, allowUdp)
 
 	err := instance.Start()
 	if err != nil {

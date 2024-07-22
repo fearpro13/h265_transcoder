@@ -26,11 +26,11 @@ type Instance struct {
 	allowUdp          bool
 }
 
-func NewInstance(rtspAddr string, httpAddr string, retryAfterSeconds int, allowUdp bool) *Instance {
+func NewInstance(rtspPort uint16, httpPort uint16, retryAfterSeconds int, allowUdp bool) *Instance {
 	ctx := context.Background()
 	return &Instance{
-		rtspHandler:       core.NewRtspHandler(ctx, rtspAddr, allowUdp),
-		httpHandler:       NewControlServer(httpAddr),
+		rtspHandler:       core.NewRtspHandler(ctx, rtspPort, allowUdp),
+		httpHandler:       NewControlServer(httpPort),
 		units:             map[string]Unit{},
 		running:           atomic.Bool{},
 		ctx:               ctx,
@@ -158,24 +158,24 @@ func (instance *Instance) GetUnit(id string) *Unit {
 	return &u
 }
 
-func (instance *Instance) AddUnit(id string, fromSource string) error {
+func (instance *Instance) AddUnit(id string, fromSource string) (Source, error) {
+	path := NewSource(id, fromSource, fmt.Sprintf("rtsp://0.0.0.0%s/%s", instance.rtspHandler.RtspAddr, id))
+
 	_, exist := instance.units[id]
 	if exist {
-		return errors.New("unit already exists")
+		return path, errors.New("unit already exists")
 	}
-
-	path := NewSource(id, fromSource, fmt.Sprintf("rtsp://0.0.0.0:9222/%s", id))
 
 	err := instance.rtspHandler.AddPath(id)
 	if err != nil {
-		return err
+		return path, err
 	}
 
 	tc := NewTranscoder(path)
 
 	err = tc.Start(instance.ctx)
 	if err != nil {
-		return err
+		return path, err
 	}
 
 	instance.units[id] = Unit{
@@ -184,7 +184,7 @@ func (instance *Instance) AddUnit(id string, fromSource string) error {
 		path:       path,
 	}
 
-	return nil
+	return path, nil
 }
 
 func (instance *Instance) RemoveUnit(id string) error {

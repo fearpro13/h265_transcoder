@@ -7,6 +7,7 @@ import (
 	"fearpro13/h265_transcoder/mediamtx/conf"
 	"fearpro13/h265_transcoder/mediamtx/logger"
 	"fearpro13/h265_transcoder/mediamtx/rtsp"
+	"fmt"
 	"github.com/bluenviron/gortsplib/v4"
 	"github.com/bluenviron/gortsplib/v4/pkg/auth"
 	"github.com/pion/logging"
@@ -20,14 +21,14 @@ type RtspHandler struct {
 	pm       *pathManager
 	rts      *rtsp.Server
 	running  atomic.Bool
-	rtspAddr string
+	RtspAddr string
 	useUdp   bool
 }
 
-func NewRtspHandler(ctx context.Context, addr string, useUdp bool) *RtspHandler {
+func NewRtspHandler(ctx context.Context, rtspPort uint16, useUdp bool) *RtspHandler {
 	handler := &RtspHandler{
 		running:  atomic.Bool{},
-		rtspAddr: addr,
+		RtspAddr: fmt.Sprintf(":%d", rtspPort),
 		useUdp:   useUdp,
 	}
 
@@ -69,7 +70,7 @@ func (h *RtspHandler) Start() error {
 			},
 			ReadTimeout: 5 * time.Second,
 		},
-		rtspAddress:       h.rtspAddr,
+		rtspAddress:       h.RtspAddr,
 		readTimeout:       conf.StringDuration(5 * time.Second),
 		writeTimeout:      conf.StringDuration(5 * time.Second),
 		writeQueueSize:    512,
@@ -90,7 +91,7 @@ func (h *RtspHandler) Start() error {
 	}
 
 	rts := &rtsp.Server{
-		Address: h.rtspAddr,
+		Address: h.RtspAddr,
 		AuthMethods: []auth.ValidateMethod{
 			auth.ValidateMethodBasic,
 		},
@@ -107,7 +108,7 @@ func (h *RtspHandler) Start() error {
 		IsTLS:             false,
 		ServerCert:        "",
 		ServerKey:         "",
-		RTSPAddress:       h.rtspAddr,
+		RTSPAddress:       h.RtspAddr,
 		Protocols:         allowedProto,
 		PathManager:       pm,
 		Parent:            l,

@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"sync/atomic"
 )
 
-type OnCreate func(id string, source string) error
+type OnCreate func(id string, source string) (Source, error)
 type OnStop func(id string) error
 type OnStatus func(id string) map[string]any
 type OnStatusAll func() map[string]any
@@ -23,10 +24,10 @@ type ControlServer struct {
 	running atomic.Bool
 }
 
-func NewControlServer(addr string) *ControlServer {
+func NewControlServer(httpPort uint16) *ControlServer {
 	handler := &http.ServeMux{}
 	server := &http.Server{
-		Addr:                         addr,
+		Addr:                         fmt.Sprintf(":%d", httpPort),
 		Handler:                      handler,
 		DisableGeneralOptionsHandler: false,
 		TLSConfig:                    nil,
@@ -69,21 +70,27 @@ func NewControlServer(addr string) *ControlServer {
 
 		_ = r.Body.Close()
 
-		err = controlServer.OnCreate(id, source)
+		encoder := json.NewEncoder(w)
+
+		var addedSource Source
+		addedSource, err = controlServer.OnCreate(id, source)
 		if err != nil {
 			w.Header().Add("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 
-			encoder := json.NewEncoder(w)
-
 			_ = encoder.Encode(map[string]string{
-				"message": err.Error(),
+				"source": addedSource.to.String(),
 			})
 
 			return
 		}
 
+		w.Header().Add("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		_ = encoder.Encode(map[string]string{
+			"source": addedSource.to.String(),
+		})
+
 	})
 
 	handler.HandleFunc("POST /{id}/stop", func(w http.ResponseWriter, r *http.Request) {
