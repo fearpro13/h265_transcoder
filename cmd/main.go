@@ -15,16 +15,6 @@ import (
 )
 
 func main() {
-	demoTimeStr := "2024-07-25 12:00:00 +0300"
-	demoTime, _ := time.Parse("2006-01-02 15:04:05 -0700", demoTimeStr)
-
-	if time.Now().Unix() > demoTime.Unix() {
-		log.Printf("demo version finished at %s, contact me at fearpro13@gmail.com\n", demoTimeStr)
-		os.Exit(1)
-	} else {
-		log.Printf("Demo version active until %s\n", demoTimeStr)
-	}
-
 	gpuArg := flag.Bool("gpu", false, "Will use gpu hw acceleration(NVIDIA only)")
 	rtspPort := flag.Uint64("rtsp_port", 9222, "Rtsp listening port")
 	httpPort := flag.Uint64("http_port", 8222, "Http listening port")
