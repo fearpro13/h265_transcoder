@@ -21,6 +21,8 @@ const (
 )
 
 var FFMpegPath = "/usr/bin/ffmpeg"
+
+// IdrInterval Deprecated
 var IdrInterval uint64 = 60
 var TranscodeUseGPU = false
 
@@ -74,9 +76,9 @@ func (t *Transcoder) Start(ctx context.Context) error {
 	// start ffmpeg
 	var argsStr string
 	if TranscodeUseGPU {
-		argsStr = fmt.Sprintf("-i %s -c:a copy -c:v libx264 -x264-params keyint=%d:min-keyint=%d -f rtsp %s", t.source.from.String(), IdrInterval, IdrInterval, t.source.to.String())
+		argsStr = fmt.Sprintf("-i %s -c:a copy -c:v libx264 -bf 0 -f rtsp %s", t.source.from.String(), t.source.to.String())
 	} else {
-		argsStr = fmt.Sprintf("-i %s -c:a copy -c:v libx264 -x264-params keyint=%d:min-keyint=%d -f rtsp %s", t.source.from.String(), IdrInterval, IdrInterval, t.source.to.String())
+		argsStr = fmt.Sprintf("-i %s -c:a copy -c:v libx264 -bf 0 -f rtsp %s", t.source.from.String(), t.source.to.String())
 	}
 
 	argsSplit := strings.Split(argsStr, " ")
