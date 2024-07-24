@@ -2,7 +2,10 @@
 Transcodes h265 to h264 with API control
 
 ## Build
-    make build
+    make build - build app for all platforms(win, linux, mac)/(amd64, arm64)
+
+    make build_rev ver=1 rev=1 - same as build, but adds readme, licence and api_description files and packs it to zip archive
+
 When build is complete, all binaries could be found in ./build directory
 
 ## Run
