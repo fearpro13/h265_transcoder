@@ -19,7 +19,6 @@ func main() {
 	rtspPort := flag.Uint64("rtsp_port", 9222, "Rtsp listening port")
 	httpPort := flag.Uint64("http_port", 8222, "Http listening port")
 	ffmpegPath := flag.String("ex", "", "ffmpeg executable path")
-	idrInterval := flag.Uint64("idr", h265_transcoder.IdrInterval, "idr interval(key frame interval)")
 	udpFlag := flag.Bool("udp", false, "allow udp usage")
 
 	flag.Parse()
@@ -35,10 +34,10 @@ func main() {
 		}
 	}
 
-	os.Exit(run(*rtspPort, *httpPort, *idrInterval, *ffmpegPath, *gpuArg, *udpFlag))
+	os.Exit(run(*rtspPort, *httpPort, *ffmpegPath, *gpuArg, *udpFlag))
 }
 
-func run(rtspPort uint64, httpPort uint64, idrInterval uint64, ffmpegPath string, useGpu bool, allowUdp bool) int {
+func run(rtspPort uint64, httpPort uint64, ffmpegPath string, useGpu bool, allowUdp bool) int {
 	if useGpu {
 		log.Println("Using GPU HW Acceleration")
 		h265_transcoder.TranscodeUseGPU = true
@@ -46,13 +45,6 @@ func run(rtspPort uint64, httpPort uint64, idrInterval uint64, ffmpegPath string
 		log.Println("GPU HW acceleration currently not supported")
 		return 1
 	}
-
-	if idrInterval < 1 {
-		log.Println("very low idr interval")
-		return 1
-	}
-
-	log.Printf("IDR interval is %d \n", idrInterval)
 
 	if allowUdp {
 		log.Println("Rtsp server UDP connections are enabled")
