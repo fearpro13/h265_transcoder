@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	gpuArg := flag.Bool("gpu", false, "Will use gpu hw acceleration(NVIDIA only)")
+	gpuArg := flag.Bool("gpu", false, "Will use gpu hw acceleration(NVIDIA only, NOT IMPLEMENTED)")
 	rtspPort := flag.Uint64("rtsp_port", 9222, "Rtsp listening port")
 	httpPort := flag.Uint64("http_port", 8222, "Http listening port")
 	ffmpegPath := flag.String("ex", "", "ffmpeg executable path")
