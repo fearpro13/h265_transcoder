@@ -15,7 +15,7 @@ When build is complete, all binaries could be found in ./build directory
     ffmpeg executable path
 
     -gpu
-    Will use gpu hw acceleration(NVIDIA only)
+    Will use gpu hw acceleration(NVIDIA only, NOT IMPLEMENTED)
 
     -http_port uint
     Http listening port (default 8222)
@@ -25,3 +25,21 @@ When build is complete, all binaries could be found in ./build directory
 
     -udp
     allow udp usage
+
+## Api description
+
+    All objects status
+    GET http://127.0.0.1:8222/status
+
+    Object status by object id
+    GET http://127.0.0.1:8222/{id}/status
+
+    Object creation
+    POST http://127.0.0.1:8222/create
+    {
+    "id":"2",
+    "source":"rtsp://127.0.0.1:8554/vid1"
+    }
+
+    Object removal
+    POST http://127.0.0.1:8222/{id}/stop
