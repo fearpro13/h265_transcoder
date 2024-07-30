@@ -74,7 +74,7 @@ func (t *Transcoder) Start(ctx context.Context) error {
 	}
 
 	// start ffmpeg
-	argsStr := fmt.Sprintf("-y -fflags +igndts -rtsp_transport tcp -i %s -c:a copy -c:v libx264 -bf 0 -f rtsp -rtsp_transport tcp %s", t.source.from.String(), t.source.to.String())
+	argsStr := fmt.Sprintf("-y -fflags +igndts -rtsp_transport tcp -i %s -c:a copy -c:v libx264 -crf 20 -b:v 500k -max_muxing_queue_size 1024 -bf 0 -f rtsp -rtsp_transport tcp %s", t.source.from.String(), t.source.to.String())
 
 	argsSplit := strings.Split(argsStr, " ")
 	cmd := exec.Command(FFMpegPath, argsSplit...)
