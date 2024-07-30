@@ -111,15 +111,13 @@ func (t *Transcoder) Start(ctx context.Context) error {
 			t.status = StatusStopped
 		}
 
-		_ = t.proc.Process.Release()
-
 		t.ctxF()
 	}()
 
 	go func() {
 		select {
 		case <-t.ctx.Done():
-			t.running.Store(false)
+			_ = t.Stop()
 		}
 	}()
 
@@ -143,6 +141,8 @@ func (t *Transcoder) run() {
 
 			pErr = t.proc.Process.Signal(syscall.Signal(0))
 			if pErr != nil && !errors.Is(pErr, syscall.EPERM) {
+				log.Println(pErr)
+				t.ctxF()
 				return
 			}
 		} else {
@@ -157,7 +157,9 @@ func (t *Transcoder) Stop() error {
 	}
 
 	t.running.Store(false)
+
 	t.ctxF()
+	_ = t.proc.Process.Release()
 	_ = t.proc.Process.Kill()
 
 	return nil
