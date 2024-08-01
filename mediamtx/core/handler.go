@@ -18,6 +18,7 @@ import (
 type RtspHandler struct {
 	ctx      context.Context
 	ctxF     context.CancelFunc
+	Done     <-chan struct{}
 	pm       *pathManager
 	rts      *rtsp.Server
 	running  atomic.Bool
@@ -33,6 +34,7 @@ func NewRtspHandler(ctx context.Context, rtspPort uint16, useUdp bool) *RtspHand
 	}
 
 	handler.ctx, handler.ctxF = context.WithCancel(ctx)
+	handler.Done = handler.ctx.Done()
 
 	return handler
 }
@@ -145,6 +147,12 @@ func (h *RtspHandler) Stop() {
 
 	h.pm.close()
 	h.rts.Close()
+}
+
+func (h *RtspHandler) PathExist(name string) bool {
+	_, e := h.pm.paths[name]
+
+	return e
 }
 
 func (h *RtspHandler) AddPath(path string) error {

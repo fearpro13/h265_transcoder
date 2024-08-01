@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fearpro13/h265_transcoder"
 	"flag"
@@ -71,7 +72,10 @@ func run(rtspPort uint64, httpPort uint64, ffmpegPath string, useGpu bool, allow
 	osig := make(chan os.Signal, 1)
 	signal.Notify(osig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
 
-	instance := h265_transcoder.NewInstance(uint16(rtspPort), uint16(httpPort), 10, allowUdp)
+	ctx, ctxF := context.WithCancel(context.Background())
+	defer ctxF()
+
+	instance := h265_transcoder.NewInstance(ctx, uint16(rtspPort), uint16(httpPort), 10, allowUdp)
 
 	err := instance.Start()
 	if err != nil {
@@ -80,12 +84,9 @@ func run(rtspPort uint64, httpPort uint64, ffmpegPath string, useGpu bool, allow
 		return 1
 	}
 
-	<-osig
-
-	err = instance.Stop()
-	if err != nil {
-		log.Println(err)
-		return 1
+	select {
+	case <-osig:
+	case <-instance.Done:
 	}
 
 	return 0

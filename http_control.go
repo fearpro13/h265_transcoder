@@ -22,13 +22,18 @@ type ControlServer struct {
 	OnStatus
 	OnStatusAll
 	running atomic.Bool
+	ctxF    context.CancelFunc
+	ctx     context.Context
+	Done    <-chan struct{}
 }
 
-func NewControlServer(httpPort uint16) *ControlServer {
+func NewControlServer(pCtx context.Context, httpPort uint16) *ControlServer {
 	handler := &http.ServeMux{}
+	panicHandler := &http.ServeMux{}
+
 	server := &http.Server{
 		Addr:                         fmt.Sprintf(":%d", httpPort),
-		Handler:                      handler,
+		Handler:                      panicHandler,
 		DisableGeneralOptionsHandler: false,
 		TLSConfig:                    nil,
 		ReadTimeout:                  0,
@@ -43,7 +48,30 @@ func NewControlServer(httpPort uint16) *ControlServer {
 		ConnContext:                  nil,
 	}
 
-	controlServer := &ControlServer{hs: server, running: atomic.Bool{}}
+	ctx, ctxF := context.WithCancel(pCtx)
+	controlServer := &ControlServer{hs: server, running: atomic.Bool{}, Done: ctx.Done(), ctx: ctx, ctxF: ctxF}
+
+	panicHandler.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		defer func() {
+			r := recover()
+			if r != nil {
+				var err error
+				switch t := r.(type) {
+				case string:
+					err = errors.New(t)
+				case error:
+					err = t
+				default:
+					err = errors.New("unknown error")
+				}
+
+				log.Printf("http_control: panic: %s, stopping\n", err.Error())
+				controlServer.ctxF()
+			}
+		}()
+
+		handler.ServeHTTP(writer, request)
+	})
 
 	handler.HandleFunc("POST /create", func(w http.ResponseWriter, r *http.Request) {
 		decoder := json.NewDecoder(r.Body)
@@ -158,6 +186,7 @@ func (s *ControlServer) Start() error {
 		if err != nil {
 			_ = s.Stop()
 		}
+		s.ctxF()
 	}()
 
 	return nil
@@ -169,6 +198,7 @@ func (s *ControlServer) Stop() error {
 	}
 
 	s.running.Store(false)
+	s.ctxF()
 
 	return s.hs.Shutdown(context.Background())
 }
